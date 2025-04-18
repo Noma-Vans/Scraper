@@ -11,7 +11,21 @@ def extract_product_details(driver: WebDriver, product_url: str) -> Dict:
     """
     Return a dict with detail page info, including title, price, availability, and buy-box price.
     """
-    driver.get(product_url)
+    try:
+        driver.get(product_url)
+        # Random human-like delay
+        time.sleep(random.uniform(2, 6))
+    except Exception as e:
+        # Handle navigation errors
+        data = {
+            'error': f"Failed to navigate to product page: {str(e)}",
+            'title': None,
+            'price': None,
+            'buy_box_price': None,
+            'availability': None,
+            'details_json_ld': None
+        }
+        return data
     # Random human-like delay
     time.sleep(random.uniform(2, 6))
 
