@@ -14,7 +14,14 @@ USER_AGENTS = [
 ]
 
 
+
 def get_search_results(driver: WebDriver, search_term: str, max_results: int = 50) -> List[Dict]:
+    """
+    Return a list of dicts: { 'asin', 'rank', 'url' } for the top search results.
+    """
+    if max_results <= 0:
+        raise ValueError("max_results must be a positive integer")
+
     """
     Return a list of dicts: { 'asin', 'rank', 'url' } for the top search results.
     """
@@ -24,7 +31,13 @@ def get_search_results(driver: WebDriver, search_term: str, max_results: int = 5
     # Random delay to mimic human behavior
     time.sleep(random.uniform(2, 5))
 
-    items = driver.find_elements(By.CSS_SELECTOR, 'div.s-result-item[data-asin]')
+    try:
+        items = driver.find_elements(By.CSS_SELECTOR, 'div.s-result-item[data-asin]')
+        if not items:
+            logging.warning("No search results found. Amazon may have changed their page structure or blocked the request.")
+    except Exception as e:
+        logging.error(f"Error finding search results: {e}")
+        items = []
     results: List[Dict] = []
     rank = 1
     for item in items:
@@ -34,7 +47,8 @@ def get_search_results(driver: WebDriver, search_term: str, max_results: int = 5
         try:
             link_elem = item.find_element(By.CSS_SELECTOR, 'h2 a')
             product_url = link_elem.get_attribute('href')
-        except Exception:
+        except (NoSuchElementException, StaleElementReferenceException) as e:
+            logging.warning(f"Could not extract URL for ASIN {asin}: {str(e)}")
             continue
         results.append({
             'asin': asin,
