@@ -1,73 +1,88 @@
 # file: main.py
+"""
+Simplified orchestrator for Amazon scraping pipeline.
+
+Loads search terms from S3, scrapes search and detail pages sequentially,
+and saves combined results back to S3.
+"""
 import os
 import time
+import json
 import random
+import argparse
 import logging
+from datetime import datetime
+from typing import List, Dict
+
 from aws_s3_utils import load_search_terms, save_results
-from search_results import get_search_results, USER_AGENTS
+from search_results import get_search_results
 from detail_page import extract_product_details
 import undetected_chromedriver as uc
-from selenium.webdriver.remote.webdriver import WebDriver
 
 
-def setup_driver(proxy: str = None) -> WebDriver:
+def parse_args():
+    parser = argparse.ArgumentParser(description='Simple Amazon scraper')
+    parser.add_argument('--search-bucket', required=True)
+    parser.add_argument('--search-key', required=True)
+    parser.add_argument('--output-bucket', required=True)
+    parser.add_argument('--output-prefix', default='results/')
+    parser.add_argument('--proxy', default=None)
+    parser.add_argument('--max-results', type=int, default=10)
+    parser.add_argument('--headless', action='store_true')
+    parser.add_argument('--sleep', type=float, default=1.0, help='Seconds between requests')
+    return parser.parse_args()
+
+
+def setup_driver(proxy=None, headless=False):
     options = uc.ChromeOptions()
-    options.add_argument('--headless=new')
-    options.add_argument(f"--user-agent={random.choice(USER_AGENTS)}")
-    # Disable automation flags
-    options.add_argument('--disable-blink-features=AutomationControlled')
+    if headless:
+        options.headless = True
+    # Use a static user-agent
+    options.add_argument("--user-agent=Mozilla/5.0 (compatible; Bot/1.0)")
     if proxy:
-        options.add_argument(f'--proxy-server={proxy}')
+        options.add_argument(f"--proxy-server={proxy}")
     driver = uc.Chrome(options=options)
     driver.set_page_load_timeout(30)
     return driver
 
 
 def main():
-    logging.basicConfig(
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        level=logging.INFO
-    )
+    args = parse_args()
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
 
-    # Environment variables for S3
-    search_bucket = os.environ.get('SEARCH_BUCKET')
-    if not search_bucket:
-        raise ValueError("Required environment variable 'SEARCH_BUCKET' is not set")
-    search_key = os.environ['SEARCH_KEY']
-    output_bucket = os.environ['OUTPUT_BUCKET']
-    output_prefix = os.environ.get('OUTPUT_PREFIX', 'results/')
-    proxy = os.environ.get('PROXY')  # e.g. http://user:pass@host:port
+    logging.info('Loading search terms...')
+    terms: List[str] = load_search_terms(args.search_bucket, args.search_key)
+    logging.info(f'Found {len(terms)} terms')
 
-    search_terms = load_search_terms(search_bucket, search_key)
-    driver = setup_driver(proxy)
+    driver = setup_driver(args.proxy, args.headless)
+    collected: List[Dict] = []
 
-    all_data = []
-    for term in search_terms:
-        logging.info(f"Processing search term: {term}")
+    for term in terms:
+        logging.info(f"Searching for '{term}'...")
         try:
-            results = get_search_results(driver, term)
-            for res in results:
-                logging.info(f"Scraping detail for ASIN {res['asin']} (rank {res['rank']})")
-                details = extract_product_details(driver, res['url'])
-                record = {
-                    **res,
-                    **details,
-                    'search_term': term
-                }
-                all_data.append(record)
-                # short delay between detail pages
-                time.sleep(random.uniform(1, 3))
+            results = get_search_results(driver, term, max_results=args.max_results)
         except Exception as e:
-            logging.error(f"Error processing term '{term}': {e}")
-        # longer delay between search terms
-        time.sleep(random.uniform(5, 10))
+            logging.error(f"Search failed for '{term}': {e}")
+            continue
 
-    # Write results to S3
-    import datetime
-    timestamp = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
-    output_key = f"{output_prefix}amazon_search_{timestamp}.json"
-    save_results(output_bucket, output_key, all_data)
+        for item in results:
+            logging.info(f"Detail for ASIN {item['asin']} (rank {item['rank']})")
+            try:
+                details = extract_product_details(driver, item['url'])
+            except Exception as e:
+                logging.error(f"Detail failed for ASIN {item['asin']}: {e}")
+                continue
+            record = {**item, **details, 'search_term': term}
+            collected.append(record)
+            time.sleep(args.sleep)
+
     driver.quit()
+
+    timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+    key = f"{args.output_prefix}amazon_results_{timestamp}.json"
+    logging.info(f"Saving {len(collected)} records to S3 at {args.output_bucket}/{key}")
+    save_results(args.output_bucket, key, collected)
+    logging.info('Done.')
 
 
 if __name__ == '__main__':
