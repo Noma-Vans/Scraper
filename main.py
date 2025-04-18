@@ -12,7 +12,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 
 def setup_driver(proxy: str = None) -> WebDriver:
     options = uc.ChromeOptions()
-    options.headless = True
+    options.add_argument('--headless=new')
     options.add_argument(f"--user-agent={random.choice(USER_AGENTS)}")
     # Disable automation flags
     options.add_argument('--disable-blink-features=AutomationControlled')
@@ -30,7 +30,9 @@ def main():
     )
 
     # Environment variables for S3
-    search_bucket = os.environ['SEARCH_BUCKET']
+    search_bucket = os.environ.get('SEARCH_BUCKET')
+    if not search_bucket:
+        raise ValueError("Required environment variable 'SEARCH_BUCKET' is not set")
     search_key = os.environ['SEARCH_KEY']
     output_bucket = os.environ['OUTPUT_BUCKET']
     output_prefix = os.environ.get('OUTPUT_PREFIX', 'results/')
