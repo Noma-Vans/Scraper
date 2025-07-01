@@ -2,6 +2,7 @@
 import os
 import json
 import time
+import random
 from typing import List, Dict
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
@@ -16,7 +17,7 @@ USER_AGENTS = [
 
 def setup_driver(proxy=None):
     opts = uc.ChromeOptions()
-    opts.headless = True
+    opts.add_argument('--headless')
     opts.add_argument(f"--user-agent={random.choice(USER_AGENTS)}")
     if proxy:
         opts.add_argument(f"--proxy-server={proxy}")
