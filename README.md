@@ -1,28 +1,32 @@
-# Amazon Price Monitor
+# Amazon ASIN Pricing Scraper
 
-A powerful Amazon pricing scraper that reads ASINs from a Google Sheet, extracts detailed pricing information from Amazon product pages, and writes the results back to the sheet.
+A comprehensive Amazon pricing scraper that reads ASINs from AWS S3, extracts detailed pricing information from Amazon product detail pages, and saves results back to S3. This scraper follows the established infrastructure patterns of the existing Amazon scraping project.
 
 ## Features
 
-- **Google Sheets Integration**: Reads ASINs from and writes results to Google Sheets
-- **Comprehensive Price Extraction**: Gets current price, list price, discounts, availability, and more
-- **Anti-Detection**: Uses undetected-chromedriver with random delays and user agents
+- **S3 Integration**: Reads ASINs from S3 JSON files and saves results to S3
+- **Comprehensive Price Extraction**: Current price, list price, discounts, availability, Prime eligibility
+- **Anti-Detection**: Uses undetected-chromedriver with random delays and user agents  
 - **Robust Error Handling**: Continues processing even if some ASINs fail
-- **Configurable**: Supports proxies, custom delays, and various sheet configurations
-- **Logging**: Detailed logging to both console and file
+- **AWS Infrastructure**: Follows existing project patterns for S3 storage
+- **Detailed Logging**: Comprehensive logging with timestamps and progress tracking
 
 ## Data Extracted
 
 For each ASIN, the scraper extracts:
 
-- Product title
-- Current selling price
-- List price (if available)
-- Discount amount and percentage
-- Availability status
-- Prime eligibility
-- Seller information
-- Timestamp of scraping
+- **ASIN**: Product identifier
+- **Title**: Product name from Amazon
+- **Current Price**: Current selling price (text and numeric)
+- **List Price**: Original/MSRP price (if available)
+- **Discount**: Calculated discount amount and percentage
+- **Availability**: Stock status and shipping info
+- **Prime Eligible**: Whether product has Prime shipping
+- **Seller**: Merchant/seller information
+- **Buy Box Price**: Price in the buy box (follows existing pattern)
+- **Scraped At**: ISO timestamp of data collection
+- **URL**: Direct link to product page
+- **JSON-LD Data**: Structured data from page (follows existing pattern)
 
 ## Setup
 
@@ -32,119 +36,66 @@ For each ASIN, the scraper extracts:
 pip install -r requirements.txt
 ```
 
-### 2. Google Sheets Setup
+### 2. AWS Configuration
 
-#### Create a Google Cloud Project and Service Account
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing one
-3. Enable the Google Sheets API and Google Drive API
-4. Create a service account:
-   - Go to IAM & Admin > Service Accounts
-   - Click "Create Service Account"
-   - Give it a name and description
-   - Download the JSON credentials file
-
-#### Prepare Your Google Sheet
-
-1. Create a Google Sheet with ASINs in column A (or specify different column)
-2. Share the sheet with your service account email (found in the JSON file)
-3. Grant "Editor" permissions to the service account
-
-Example sheet structure:
-```
-| A        | B     | C              | D          | E         | F            | G            | H               |
-|----------|-------|----------------|------------|-----------|--------------|--------------|-----------------|
-| ASIN     | Title | Current Price  | List Price | Discount  | Availability | Last Scraped | URL             |
-| B08N5... |       |                |            |           |              |              |                 |
-| B07Q2... |       |                |            |           |              |              |                 |
-```
-
-### 3. Configuration
-
-Copy the example environment file and configure it:
+Ensure your AWS credentials are configured (following existing project patterns):
 
 ```bash
-cp .env.example .env
+# Option 1: AWS credentials file
+aws configure
+
+# Option 2: Environment variables
+export AWS_ACCESS_KEY_ID="your_key"
+export AWS_SECRET_ACCESS_KEY="your_secret"
+export AWS_DEFAULT_REGION="us-east-1"
+
+# Option 3: IAM roles (if running on EC2)
 ```
 
-Edit `.env` with your settings:
+### 3. Prepare ASIN Data
 
+Create a JSON file in S3 containing your ASINs:
+
+```json
+[
+  "B08N5WRWNW",
+  "B07XJ8C8F5", 
+  "B0BDKDXRMZ",
+  "B08GKQHKZ8"
+]
+```
+
+Upload to S3:
 ```bash
-# Required
-GOOGLE_SHEETS_CREDENTIALS='{"type":"service_account",...}'
-GOOGLE_SHEET_URL="https://docs.google.com/spreadsheets/d/your_sheet_id/edit"
-
-# Optional
-WORKSHEET_NAME="Sheet1"
-ASIN_COLUMN="A"
-HEADLESS="True"
-MIN_DELAY="3"
-MAX_DELAY="8"
+aws s3 cp asins.json s3://your-bucket/asins.json
 ```
 
 ## Usage
 
-### Quick Start
-
-1. **Install dependencies:**
-   ```bash
-   python setup.py
-   ```
-
-2. **Configure your environment:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your Google Sheets credentials and sheet URL
-   ```
-
-3. **Run the scraper:**
-   ```bash
-   python amazon_price_monitor.py
-   ```
-
 ### Basic Usage
 
-```bash
-# Basic usage
-python amazon_price_monitor.py
-
-# Or use the CLI with options
-python run_scraper.py
-
-# Test the setup
-python run_scraper.py --test
-```
-
-### CLI Usage
-
-The `run_scraper.py` script provides a command-line interface with many options:
+Set the required environment variables and run:
 
 ```bash
-# Basic usage
-python run_scraper.py
+export SEARCH_BUCKET="your-input-bucket"
+export ASIN_KEY="asins.json"  # or use SEARCH_KEY (existing pattern)
+export OUTPUT_BUCKET="your-output-bucket"
 
-# Specify different sheet
-python run_scraper.py --sheet-url "https://docs.google.com/spreadsheets/d/your_id/edit"
-
-# Use different worksheet and column
-python run_scraper.py --worksheet "Products" --asin-column "B"
-
-# Run in visible browser mode for debugging
-python run_scraper.py --no-headless --verbose
-
-# Use custom delays
-python run_scraper.py --min-delay 5 --max-delay 15
-
-# Use a proxy
-python run_scraper.py --proxy "http://user:pass@proxy.com:8080"
-
-# Run test mode
-python run_scraper.py --test
-
-# Validate configuration
-python run_scraper.py --validate-config
+python amazon_asin_pricing_scraper.py
 ```
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SEARCH_BUCKET` | Yes | - | S3 bucket containing ASIN file |
+| `ASIN_KEY` | Yes* | - | S3 key for ASIN JSON file |
+| `SEARCH_KEY` | Yes* | - | Alternative to ASIN_KEY (existing pattern) |
+| `OUTPUT_BUCKET` | Yes | - | S3 bucket for results |
+| `OUTPUT_PREFIX` | No | `pricing_results/` | S3 prefix for output files |
+| `PROXY` | No | - | Proxy server (format: http://user:pass@host:port) |
+
+*Either `ASIN_KEY` or `SEARCH_KEY` must be set
 
 ### Advanced Usage
 
@@ -152,128 +103,175 @@ python run_scraper.py --validate-config
 
 ```bash
 export PROXY="http://username:password@proxy.example.com:8080"
-python amazon_price_monitor.py
+python amazon_asin_pricing_scraper.py
 ```
 
-#### Custom Delays
+#### Custom Output Location
 
 ```bash
-export MIN_DELAY="5"
-export MAX_DELAY="15"
-python amazon_price_monitor.py
+export OUTPUT_PREFIX="custom/pricing/"
+python amazon_asin_pricing_scraper.py
 ```
 
-#### Non-Headless Mode (for debugging)
+#### Full Example
 
 ```bash
-export HEADLESS="False"
-python amazon_price_monitor.py
+#!/bin/bash
+export SEARCH_BUCKET="my-scraping-bucket"
+export ASIN_KEY="product-asins/electronics.json"
+export OUTPUT_BUCKET="my-results-bucket"
+export OUTPUT_PREFIX="pricing/electronics/"
+export PROXY="http://user:pass@proxy.com:8080"
+
+python amazon_asin_pricing_scraper.py
 ```
 
-## Environment Variables
+## Input Format
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `GOOGLE_SHEETS_CREDENTIALS` | Yes | - | Service account JSON credentials |
-| `GOOGLE_SHEET_URL` | Yes | - | Google Sheet URL or ID |
-| `WORKSHEET_NAME` | No | First sheet | Name of worksheet to use |
-| `ASIN_COLUMN` | No | A | Column containing ASINs |
-| `PROXY` | No | - | Proxy server URL |
-| `HEADLESS` | No | True | Run browser in headless mode |
-| `MIN_DELAY` | No | 3 | Minimum delay between requests (seconds) |
-| `MAX_DELAY` | No | 8 | Maximum delay between requests (seconds) |
+The ASIN file in S3 should be a JSON array of strings:
 
-## Output
+```json
+[
+  "B08N5WRWNW",
+  "B07XJ8C8F5",
+  "B0BDKDXRMZ"
+]
+```
 
-The scraper writes the following data to your Google Sheet:
+## Output Format
 
-- **ASIN**: The product identifier
-- **Title**: Product name from Amazon
-- **Current Price**: Current selling price
-- **List Price**: Original/list price (if available)
-- **Discount**: Calculated discount percentage
-- **Availability**: Stock status
-- **Last Scraped**: Timestamp of when data was collected
-- **URL**: Direct link to the product page
+Results are saved to S3 as JSON with this structure:
+
+```json
+[
+  {
+    "asin": "B08N5WRWNW",
+    "url": "https://www.amazon.com/dp/B08N5WRWNW",
+    "title": "Echo Dot (4th Gen) | Smart speaker with Alexa",
+    "current_price": "$49.99",
+    "current_price_numeric": 49.99,
+    "list_price": "$59.99", 
+    "list_price_numeric": 59.99,
+    "discount_amount": "$10.00",
+    "discount_percentage": "16.7%",
+    "availability": "In Stock",
+    "prime_eligible": true,
+    "seller": "Amazon.com",
+    "buy_box_price": "$49.99",
+    "scraped_at": "2024-01-15T10:30:45.123456",
+    "details_json_ld": {...},
+    "error": null
+  }
+]
+```
 
 ## Error Handling
 
-- **Invalid ASINs**: Logged and skipped
-- **Network errors**: Retried with delays
-- **Page load failures**: Logged and continued
-- **Missing elements**: Gracefully handled with null values
+- **Invalid ASINs**: Logged and recorded with error message
+- **Network timeouts**: Handled gracefully with retries
+- **Missing page elements**: Null values returned for missing data
+- **S3 errors**: Clear error messages for bucket/key issues
 
 ## Logging
 
-Logs are written to:
-- Console (stdout)
-- `amazon_price_monitor.log` file
+The scraper provides detailed logging:
 
-Log levels include INFO, WARNING, and ERROR messages.
+```
+2024-01-15 10:30:45,123 - INFO - Loaded 25 ASINs from S3
+2024-01-15 10:30:45,124 - INFO - Processing ASIN 1/25: B08N5WRWNW
+2024-01-15 10:30:45,125 - INFO - Scraping pricing data for ASIN: B08N5WRWNW
+2024-01-15 10:30:48,456 - INFO - Successfully scraped pricing data for ASIN: B08N5WRWNW
+2024-01-15 10:30:48,457 - INFO - Waiting 5.2 seconds before next ASIN...
+```
+
+## Integration with Existing Project
+
+This scraper follows the established patterns from the existing Amazon scraping infrastructure:
+
+- **Uses `aws_s3_utils.py`**: Reuses `load_search_terms()` and `save_results()` functions
+- **Driver setup**: Similar to existing `setup_driver()` patterns 
+- **Environment variables**: Follows existing `SEARCH_BUCKET`, `OUTPUT_BUCKET` pattern
+- **Error handling**: Consistent with existing scrapers
+- **Logging format**: Matches existing log patterns
+- **JSON-LD extraction**: Maintains compatibility with existing `detail_page.py` approach
 
 ## Anti-Detection Features
 
-- Random user agents
-- Random delays between requests
-- Undetected Chrome driver
-- Proxy support
-- Headless browser option
+- **Undetected Chrome**: Uses undetected-chromedriver
+- **Random delays**: 3-8 seconds between requests
+- **Random user agents**: Rotates between realistic browser agents
+- **Human-like behavior**: Random page load delays
+- **Proxy support**: Route traffic through proxy servers
+
+## Performance
+
+- **Sequential processing**: One ASIN at a time to avoid detection
+- **Configurable delays**: Balance speed vs. detection risk
+- **Memory efficient**: Processes ASINs in order without loading all in memory
+- **S3 streaming**: Results saved directly to S3
 
 ## Limitations
 
-- Respects Amazon's robots.txt and terms of service
-- Rate limiting through configurable delays
-- No parallel processing to avoid detection
-- Requires stable internet connection
+- **Rate limited**: Respects Amazon's servers with delays
+- **US market**: Designed for Amazon.com (US marketplace)
+- **Sequential only**: No parallel processing to avoid detection
+- **Requires AWS**: Depends on S3 for input/output storage
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **"No module named 'undetected_chromedriver'"**
-   ```bash
-   pip install undetected-chromedriver
-   ```
+1. **S3 Access Denied**
+   - Verify AWS credentials are configured
+   - Check bucket permissions and policies
+   - Ensure buckets exist
 
-2. **Chrome driver issues**
+2. **Empty Results**
+   - Verify ASINs are valid and active
+   - Check if products are available in US market
+   - Review logs for specific error messages
+
+3. **Chrome Driver Issues**
    - Ensure Chrome browser is installed
-   - Driver will auto-download compatible version
+   - Driver auto-downloads but may need manual intervention
 
-3. **Google Sheets permission denied**
-   - Verify service account has access to the sheet
-   - Check credentials JSON format
+4. **Timeout Errors**
+   - Increase delays between requests
+   - Check network connectivity
+   - Consider using proxy
 
-4. **Empty results**
-   - Verify ASINs are valid
-   - Check if products are available in your region
-   - Try with headless=False to see browser behavior
-
-### Debug Mode
-
-Run with headless=False to see the browser:
+### Debug Commands
 
 ```bash
-export HEADLESS="False"
-python amazon_price_monitor.py
+# Test S3 access
+aws s3 ls s3://your-bucket/
+
+# Validate ASIN file format
+aws s3 cp s3://your-bucket/asins.json - | python -m json.tool
+
+# Check recent results
+aws s3 ls s3://your-output-bucket/pricing_results/ --recursive
 ```
 
-## License
+## Example Workflow
 
-This project is for educational purposes. Please respect Amazon's terms of service and robots.txt when using this scraper.
+1. **Prepare ASINs**: Create JSON file with target ASINs
+2. **Upload to S3**: Store ASIN file in input bucket
+3. **Configure environment**: Set required variables
+4. **Run scraper**: Execute pricing scraper
+5. **Download results**: Retrieve pricing data from output bucket
+6. **Analysis**: Process JSON results for insights
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+This scraper integrates with the existing Amazon scraping project. When contributing:
 
-## Support
+1. Follow existing code patterns and naming conventions
+2. Maintain compatibility with `aws_s3_utils.py`
+3. Use consistent logging and error handling
+4. Test with small ASIN sets before large runs
+5. Respect rate limits and Amazon's terms of service
 
-For issues and questions:
+## License
 
-1. Check the troubleshooting section
-2. Review the logs for error messages
-3. Ensure all dependencies are installed
-4. Verify your configuration
+This project is for educational and research purposes. Please respect Amazon's robots.txt and terms of service when using this scraper.

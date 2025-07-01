@@ -1,8 +1,8 @@
 # Environment and Configuration
 .env
 *.env
-credentials.json
-service-account-*.json
+aws-credentials.json
+*.pem
 
 # Python
 __pycache__/
