@@ -1,0 +1,73 @@
+# Environment and Configuration
+.env
+*.env
+credentials.json
+service-account-*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Logs
+*.log
+amazon_price_monitor.log
+scraper_*.log
+
+# Chrome/Selenium
+chromedriver*
+geckodriver*
+*.crx
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Output files
+output/
+results/
+data/
+*.csv
+*.xlsx
+*.json
+
+# Test files
+test_output/
+debug_*
